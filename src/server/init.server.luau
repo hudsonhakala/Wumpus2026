@@ -1,1 +1,1 @@
-print("Hello world, from server!")
+print("Connected to Server.")
