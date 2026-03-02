@@ -1,10 +1,16 @@
 
 local SharedData = require(game.ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ServerData"))
+local UIS = game:GetService("UserInputService")
 
 local SlideModule = {}
 
 local sliding = false
 local lastSlideTime = -math.huge
+
+local character = SharedData:getCharacter()
+local humanoid = character:WaitForChild("Humanoid")
+
+
 
 SlideModule.canSlide = function(humanoid, root)
 	if humanoid.Health <= 0 then return false end
@@ -18,11 +24,18 @@ end
 SlideModule.startSlide = function ()
 	if sliding then return end
 
+	while (not SharedData:watchForLanding(humanoid)) do
+        task.wait()
+    end
+
 	local character = SharedData:getCharacter()
 	local humanoid = character:WaitForChild("Humanoid")
 	local root = character:WaitForChild("HumanoidRootPart")
 
 	if not SlideModule.canSlide(humanoid, root) then return end
+
+	local initSpeed = root.AssemblyLinearVelocity.Magnitude
+	print("Starting slide at speed: "..tostring(initSpeed))
 
 	sliding = true
 	lastSlideTime = tick()
@@ -30,6 +43,8 @@ SlideModule.startSlide = function ()
 	-- Slightly lower friction feel: temporarily boost WalkSpeed control off
 	local oldAutoRotate = humanoid.AutoRotate
 	humanoid.AutoRotate = false
+
+	humanoid:ChangeState(Enum.HumanoidStateType.Swimming)  -- Prevents auto-stand
 
 	-- Create an attachment + LinearVelocity to push forward
 	local att = Instance.new("Attachment")
@@ -44,12 +59,32 @@ SlideModule.startSlide = function ()
 
 	-- Push in the direction the player is facing
 	local dir = root.CFrame.LookVector
-	lv.VectorVelocity = Vector3.new(dir.X, 0, dir.Z).Unit * SharedData.SLIDE_SPEED
+	lv.VectorVelocity = Vector3.new(dir.X, 0, dir.Z).Unit * initSpeed -- * SharedData.SLIDE_SPEED
 	lv.Parent = root
 
 	-- Optional: quick “crouch” feel by lowering hip height a bit
 	local oldHipHeight = humanoid.HipHeight
 	humanoid.HipHeight = math.max(0.5, oldHipHeight - 1)
+
+	-- Play slide animation.
+	local animTrack
+	local animFolder = character:FindFirstChild("Animations")
+	local anim = animFolder and animFolder:FindFirstChild("Slide")
+	animTrack = SharedData.loadSlideAnim(anim)
+	if not SharedData.playAnim(animTrack) then
+		warn("Slide animation failed to play.")
+	end
+		-- if animController and anim then
+		-- 	local animator = animController:FindFirstChildOfClass("Animator") or Instance.new("Animator", animController)
+		-- 	animTrack = animator:LoadAnimation(anim)
+		-- 	print("SlideAnim Loaded.")
+		-- else
+		-- 	local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
+		-- 	local fallbackAnim = Instance.new("Animation")
+		-- 	fallbackAnim.AnimationId = "rbxassetid://92402739547910"
+		-- 	animTrack = animator:LoadAnimation(fallbackAnim)
+		-- end
+		-- SharedData.playSlideAnim(animTrack)
 
 	-- Maintain push for duration, but allow steering a little
 	local t0 = tick()
@@ -61,8 +96,16 @@ SlideModule.startSlide = function ()
 			return
 		end
 
-		-- Update direction to current facing each frame (simple steering)
-		local d = root.CFrame.LookVector
+		-- Update direction to current input each frame (simple steering)
+		local steer = 0
+		if UIS:IsKeyDown(Enum.KeyCode.A) then
+			steer -= 1
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.D) then
+			steer += 1
+		end
+
+		local d = root.CFrame.LookVector + (root.CFrame.RightVector * steer * 0.4)
 		local flat = Vector3.new(d.X, 0, d.Z)
 		if flat.Magnitude > 0.01 then
 			lv.VectorVelocity = flat.Unit * SharedData.SLIDE_SPEED
@@ -76,6 +119,7 @@ SlideModule.startSlide = function ()
 
 		-- Cleanup
 		if conn then conn:Disconnect() end
+		if animTrack then animTrack:Stop() end
 		if lv then lv:Destroy() end
 		if att then att:Destroy() end
 
@@ -84,6 +128,5 @@ SlideModule.startSlide = function ()
 		humanoid.AutoRotate = oldAutoRotate
 	end)
 end
-
 
 return SlideModule;
