@@ -1,4 +1,4 @@
-local deepseek = require(script:WaitForChild("deepseek"))
+local deepseek = require(script:WaitForChild("chatbot"))
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextChatService = game:GetService("TextChatService")
 
@@ -26,24 +26,28 @@ promptEvent.OnServerEvent:Connect(function(player, prompt, channelName)
 	print("Received message from " .. player.Name .. ": " .. prompt)
 
 	task.spawn(function()
-		local ok, reply = pcall(function()
-			return deepseek:askModel(prompt)
+		local ok, replyOrErr = pcall(function()
+			local modelReply, modelErr = deepseek:askModel(prompt)
+			if not modelReply then
+				error(modelErr or "unknown model error")
+			end
+			return modelReply
 		end)
-		if ok and reply then
-			responseEvent:FireClient(player, reply, channelName)
-		else
-			warn("askModel failed:", reply)
+		if not ok or not replyOrErr then
+			warn("askModel failed:", replyOrErr)
+			responseEvent:FireClient(player, "[AI] AI backend error. Try again in a moment.", channelName)
+			return
+		end
+
+		local posted, postErr = pcall(function()
+			local sent, messageOrErr = deepseek:serveResponse(replyOrErr, channelName)
+			if not sent then
+				error(messageOrErr)
+			end
+			responseEvent:FireClient(player, messageOrErr, channelName)
+		end)
+		if not posted then
+			warn("serveResponse failed:", postErr)
 		end
 	end)
 end)
-
-
-
--- task.spawn(function()
--- 	local ok, err = pcall(function()
--- 		deepseek:serveResponse()
--- 	end)
--- 	if not ok then
--- 		warn("serveResponse failed:", err)
--- 	end
--- end)

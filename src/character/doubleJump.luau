@@ -5,6 +5,7 @@ local JumpModule = {}
 local hasDoubleJump = true
 local character = SharedData:getCharacter()
 local humanoid = character:WaitForChild("Humanoid")
+local landingConnection = nil
 
 function JumpModule:canDoubleJump()
     if not hasDoubleJump then
@@ -36,11 +37,10 @@ function JumpModule:performDoubleJump()
         return
     end
 
-    -- Apply an upward boost
-    local _lookVector = root.CFrame.LookVector
-    local jumpBoost = Vector3.new(0, 1, 0).Unit * humanoid.JumpPower * SharedData.DOUBLE_JUMP_BOOST
-    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-    root.Velocity = Vector3.new(root.Velocity.X, 0, root.Velocity.Z) + jumpBoost
+	-- Apply an upward boost
+	local jumpBoost = Vector3.new(0, 1, 0).Unit * humanoid.JumpPower * SharedData.DOUBLE_JUMP_BOOST
+	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	root.Velocity = Vector3.new(root.Velocity.X, 0, root.Velocity.Z) + jumpBoost
 
     hasDoubleJump = false
 
@@ -49,9 +49,14 @@ end
 
 -- Calls `onLanded` when the humanoid returns to ground after a jump/freefall.
 function JumpModule:watchForLanding(onLanded)
+	if landingConnection then
+		landingConnection:Disconnect()
+		landingConnection = nil
+	end
+
 	local wasAirborne = false
 
-	return humanoid.StateChanged:Connect(function(_, newState)
+	landingConnection = humanoid.StateChanged:Connect(function(_, newState)
 		if newState == Enum.HumanoidStateType.Jumping
 			or newState == Enum.HumanoidStateType.Freefall
 			or newState == Enum.HumanoidStateType.FallingDown then
@@ -63,8 +68,14 @@ function JumpModule:watchForLanding(onLanded)
 			wasAirborne = false
             hasDoubleJump = true
             if onLanded then onLanded() end
+			if landingConnection then
+				landingConnection:Disconnect()
+				landingConnection = nil
+			end
 		end
 	end)
+
+	return landingConnection
 end
 
 return JumpModule

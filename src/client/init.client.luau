@@ -1,14 +1,43 @@
-local SharedData = require(game.ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ServerData"))
 local Keybinds = require(script:WaitForChild("keybinds"))
+local Camera2D = require(script:WaitForChild("camera2d"))
+local Movement2D = require(script:WaitForChild("movement2d"))
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextChatService = game:GetService("TextChatService")
 
-local character = SharedData:getCharacter()
-local _humanoid = character:WaitForChild("Humanoid")
-    local slideClient = require(character:WaitForChild("slide"))
-    local dJumpClient = require(character:WaitForChild("doubleJump"))
-    local dashClient = require(character:WaitForChild("dash"))
+local player = Players.LocalPlayer
+local character = nil
+local _humanoid = nil
+local slideClient = nil
+local dJumpClient = nil
+local dashClient = nil
+
+local function bindCharacter(newCharacter)
+	character = newCharacter
+	_humanoid = character:WaitForChild("Humanoid")
+	slideClient = require(character:WaitForChild("slide"))
+	dJumpClient = require(character:WaitForChild("doubleJump"))
+	dashClient = require(character:WaitForChild("dash"))
+end
+
+if player.Character then
+	bindCharacter(player.Character)
+else
+	bindCharacter(player.CharacterAdded:Wait())
+end
+
+player.CharacterAdded:Connect(bindCharacter)
+
+Camera2D:start({
+	-- Set this to your stage depth so camera tracks along an X/Y plane.
+	planeZ = 0,
+})
+
+Movement2D:start({
+	cameraModule = Camera2D,
+	fallbackPlaneZ = 0,
+})
 
 local UIS = game:GetService("UserInputService")
 local promptEvent = ReplicatedStorage:WaitForChild("ChatPromptEvent")
@@ -32,29 +61,31 @@ TextChatService.MessageReceived:Connect(function(msg)
 end)
 
 responseEvent.OnClientEvent:Connect(function(reply, channelName)
-	local sent = false
 	local channels = TextChatService:FindFirstChild("TextChannels")
-	if channelName and channels then
-		local channel = channels:FindFirstChild(channelName)
-		if channel then
-			local ok = pcall(function()
-				channel:SendAsync(reply)
-			end)
-			sent = ok
+	local channel = nil
+	if channels then
+		if channelName and channelName ~= "" then
+			channel = channels:FindFirstChild(channelName)
+		end
+		if not channel then
+			channel = channels:FindFirstChild("RBXGeneral")
 		end
 	end
 
-	if not sent then
-		print("AI reply:", reply)
+	if channel then
+		channel:DisplaySystemMessage(reply)
+	else
+		print(reply)
 	end
 end)
 
 UIS.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
+    if not slideClient or not dJumpClient or not dashClient then return end
 
     if input.KeyCode == Keybinds.SLIDE_KEY then
         
-        slideClient.startSlide()
+        --slideClient.startSlide()
     end
     if input.KeyCode == Keybinds.DOUBLE_JUMP_KEY then
         dJumpClient:performDoubleJump()
