@@ -1,5 +1,8 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+
+local Keybinds = require(script.Parent:WaitForChild("keybinds"))
 
 local Movement2D = {}
 Movement2D.__index = Movement2D
@@ -194,6 +197,49 @@ end
 
 function Movement2D:setPlaneZFallback(zValue)
 	config.fallbackPlaneZ = zValue
+end
+
+function logHeldMovementKeys()
+	local movementKeyMap = {
+		UP = Keybinds.UP_KEY,
+		LEFT = Keybinds.LEFT_KEY,
+		DOWN = Keybinds.DOWN_KEY,
+		RIGHT = Keybinds.RIGHT_KEY,
+	}
+
+	local heldKeys = {}
+	for label, keyCode in pairs(movementKeyMap) do
+		if UIS:IsKeyDown(keyCode) then
+			table.insert(heldKeys, keyCode)
+		end
+	end
+
+	--table.sort(heldKeys)
+	-- if #heldKeys == 0 then
+	-- 	print("Held movement keys: none")
+	-- else
+	-- 	print("Held movement keys: " .. table.concat(heldKeys, ", "))
+	-- end
+
+	return heldKeys
+end
+
+function Movement2D:inputToVector3(input)
+    local inputDirection = Vector3.new(0, 0, 0)
+
+    local inputTable = {
+        [Enum.KeyCode.W] = Vector3.new(0, 0, -1),
+        [Enum.KeyCode.S] = Vector3.new(0, 0, 1),
+        [Enum.KeyCode.A] = Vector3.new(-1, 0, 0),
+        [Enum.KeyCode.D] = Vector3.new(1, 0, 0),
+    }
+
+    local input =logHeldMovementKeys()
+    for _, key in ipairs(input) do        local direction = inputTable[key]
+        if direction then
+            inputDirection = inputDirection + direction
+        end
+    end
 end
 
 return Movement2D

@@ -79,19 +79,29 @@ responseEvent.OnClientEvent:Connect(function(reply, channelName)
 	end
 end)
 
-UIS.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if not slideClient or not dJumpClient or not dashClient then return end
+local keyDispatch = {
+	[Keybinds.SLIDE_KEY] = function()
+		-- slideClient.startSlide()
+	end,
+	[Keybinds.DOUBLE_JUMP_KEY] = function()
+		dJumpClient:performDoubleJump()
+	end,
+	[Keybinds.DASH_KEY] = function(input)
+		dashClient.startDash(input)
+	end,
+}
 
-    if input.KeyCode == Keybinds.SLIDE_KEY then
-        
-        --slideClient.startSlide()
-    end
-    if input.KeyCode == Keybinds.DOUBLE_JUMP_KEY then
-        dJumpClient:performDoubleJump()
-    end
-    if input.KeyCode == Keybinds.DASH_KEY then
-        
-        dashClient.startDash()
-    end
+UIS.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
+	end
+	if not slideClient or not dJumpClient or not dashClient then
+		warn("Missing a movement client")
+		return
+	end
+
+	local handler = keyDispatch[input.KeyCode]
+	if handler then
+		handler(input)
+	end
 end)

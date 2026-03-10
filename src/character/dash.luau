@@ -1,3 +1,4 @@
+local characterState = require(script.Parent.characterState)
 local SharedData = require(game.ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ServerData"))
 local character = SharedData:getCharacter()
 local humanoid = character:WaitForChild("Humanoid")
@@ -6,8 +7,9 @@ local DashModule = {}
 
 local dashCount = 2
 local dashing = false
+local landingConnection = nil
 
-function DashModule:startDash()
+function DashModule:startDash(input)
     if dashing then
         return
     end
@@ -21,10 +23,12 @@ function DashModule:startDash()
         return
     end
 
+    dashCount = dashCount - 1
     dashing = true
 
     -- Apply a forward boost and keep vertical velocity at 0 to counter gravity.
     local lookVector = root.CFrame.LookVector
+    local inputVector = Vector3.new(lookVector.X, 0, lookVector.Z)
     
     local jumpBoost = Vector3.new(lookVector.X, 0, lookVector.Z).Unit * SharedData.DASH_SPEED
     humanoid:ChangeState(Enum.HumanoidStateType.Ragdoll)
@@ -46,11 +50,10 @@ function DashModule:startDash()
         if att then att:Destroy() end
 
         humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-        dashCount -= 1
         dashing = false
     end)
 
-    DashModule:watchForLanding()
+    characterState:watchForLanding(function()print("Landed, dashes reset."); dashCount = 2 end, landingConnection)
 end
 
 function DashModule:checkCanDash()
