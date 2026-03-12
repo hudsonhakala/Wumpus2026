@@ -1,7 +1,10 @@
-local Players = game:GetService("Players")
+local Players = game:GetService("Players") -- services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ServerScriptService = game:GetService("ServerScriptService")
 local UIS = game:GetService("UserInputService")
 
+local config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("MovementConfig")) -- settings
 local Keybinds = require(script.Parent:WaitForChild("keybinds"))
 
 local Movement2D = {}
@@ -11,17 +14,6 @@ local localPlayer = Players.LocalPlayer
 
 local renderConnection = nil
 local characterAddedConnection = nil
-
-local config = {
-	planeEpsilon = 0.01,
-	smoothClamp = false,
-	clampSmoothness = 14,
-	facingDeadzone = 0.05,
-	facingTurnSpeed = 35,
-	fallbackPlaneZ = 0,
-	cameraModule = nil,
-	autoFace = true,
-}
 
 local character = nil
 local humanoid = nil
@@ -92,6 +84,58 @@ end
 
 local function getRotationOnly(cf)
 	return cf - cf.Position
+end
+
+local function getMovementInputX()
+	if not humanoid then
+		return 0
+	end
+
+	local inputX = humanoid.MoveDirection.X
+	if math.abs(inputX) <= config.inputDeadzone then
+		return 0
+	end
+
+	return math.sign(inputX)
+end
+
+local function isGrounded()
+	return humanoid and humanoid.FloorMaterial ~= Enum.Material.Air
+end
+
+local function blendRate(currentValue, targetValue, rate, dt)
+	-- Convert the tuning rate into a frame-rate independent blend amount.
+	local alpha = 1 - math.exp(-rate * dt)
+	return currentValue + ((targetValue - currentValue) * alpha)
+end
+
+local function updateHorizontalVelocity(dt)
+	if not humanoid or not rootPart then
+		return
+	end
+
+	local inputX = getMovementInputX()
+	local currentVelocity = rootPart.AssemblyLinearVelocity
+	local currentVelocityX = currentVelocity.X
+	local grounded = isGrounded()
+	local targetVelocityX = inputX * config.moveSpeed
+
+	local controlRate = grounded and config.groundAcceleration or config.airAcceleration
+	local frictionRate = grounded and config.groundFriction or config.airFriction
+	local rate = frictionRate
+
+	if inputX ~= 0 then
+		-- With input held, accelerate toward the target speed instead of snapping there instantly.
+		rate = controlRate
+		if currentVelocityX ~= 0 and math.sign(currentVelocityX) ~= inputX then
+			-- Changing direction needs extra force so momentum exists without making turns feel sluggish.
+			rate = rate * config.reverseAccelerationMultiplier
+		end
+	end
+
+	-- If there is no input, the target speed is zero, so this same blend behaves like friction.
+	local nextVelocityX = blendRate(currentVelocityX, targetVelocityX, rate, dt)
+	rootPart.AssemblyLinearVelocity = Vector3.new(nextVelocityX, currentVelocity.Y, 0)
 end
 
 function Movement2D:start(overrides)
@@ -172,10 +216,7 @@ function Movement2D:start(overrides)
 
 		rootPart.CFrame = finalCFrame
 
-		local linearVelocity = rootPart.AssemblyLinearVelocity
-		if math.abs(linearVelocity.Z) > config.planeEpsilon then
-			rootPart.AssemblyLinearVelocity = Vector3.new(linearVelocity.X, linearVelocity.Y, 0)
-		end
+		updateHorizontalVelocity(dt)
 	end)
 end
 
@@ -225,21 +266,28 @@ function logHeldMovementKeys()
 end
 
 function Movement2D:inputToVector3(input)
-    local inputDirection = Vector3.new(0, 0, 0)
+	local inputDirection = Vector3.zero
 
-    local inputTable = {
-        [Enum.KeyCode.W] = Vector3.new(0, 0, -1),
-        [Enum.KeyCode.S] = Vector3.new(0, 0, 1),
-        [Enum.KeyCode.A] = Vector3.new(-1, 0, 0),
-        [Enum.KeyCode.D] = Vector3.new(1, 0, 0),
-    }
+	local inputTable = {
+		[Enum.KeyCode.W] = Vector3.new(0, 0, -1),
+		[Enum.KeyCode.S] = Vector3.new(0, 0, 1),
+		[Enum.KeyCode.A] = Vector3.new(-1, 0, 0),
+		[Enum.KeyCode.D] = Vector3.new(1, 0, 0),
+	}
 
-    local input =logHeldMovementKeys()
-    for _, key in ipairs(input) do        local direction = inputTable[key]
-        if direction then
-            inputDirection = inputDirection + direction
-        end
-    end
+	local heldKeys = input or logHeldMovementKeys()
+	for _, key in ipairs(heldKeys) do
+		local direction = inputTable[key]
+		if direction then
+			inputDirection = inputDirection + direction
+		end
+	end
+
+	if inputDirection.Magnitude > 0 then
+		return inputDirection.Unit
+	end
+
+	return inputDirection
 end
 
 return Movement2D

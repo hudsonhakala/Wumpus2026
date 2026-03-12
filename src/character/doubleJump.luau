@@ -50,6 +50,4 @@ function JumpModule:performDoubleJump()
     characterState:watchForLanding(function()print("Landed, double jump reset."); hasDoubleJump = true end, landingConnection)
 end
 
-
-
 return JumpModule

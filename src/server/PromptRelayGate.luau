@@ -3,7 +3,7 @@ local RELAY_URL = "https://nonsensible-thalia-incipient.ngrok-free.dev/prompt"
 
 local ChatbotModule = {}
 
-function ChatbotModule:askModel(message, duration)
+function askModel(message, duration)
 	print("Asking model: " .. message)
 	local body = HttpService:JSONEncode({
 		prompt = message
@@ -49,7 +49,7 @@ function ChatbotModule:askModel(message, duration)
 	return answer, nil
 end
 
-function ChatbotModule:serveResponse(answer, channelName)
+function serveResponse(answer, channelName)
 	if typeof(answer) ~= "string" or answer == "" then
 		return false, "empty answer"
 	end
@@ -57,6 +57,34 @@ function ChatbotModule:serveResponse(answer, channelName)
 	print(answer)
 
 	return true, "[AI] " .. answer
+end
+
+function ChatbotModule:handlePrompt(player, prompt, channelName, responseEvent)
+	task.spawn(function()
+		local ok, replyOrErr = pcall(function()
+			local modelReply, modelErr = askModel(prompt)
+			if not modelReply then
+				error(modelErr or "unknown model error")
+			end
+			return modelReply
+		end)
+		if not ok or not replyOrErr then
+			warn("askModel failed:", replyOrErr)
+			responseEvent:FireClient(player, "[AI] AI backend error. Try again in a moment.", channelName)
+			return
+		end
+
+		local posted, postErr = pcall(function()
+			local sent, messageOrErr = serveResponse(replyOrErr, channelName)
+			if not sent then
+				error(messageOrErr)
+			end
+			responseEvent:FireClient(player, messageOrErr, channelName)
+		end)
+		if not posted then
+			warn("serveResponse failed:", postErr)
+		end
+	end)
 end
 
 return ChatbotModule
