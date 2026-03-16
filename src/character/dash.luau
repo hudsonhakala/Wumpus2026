@@ -5,16 +5,49 @@ local humanoid = character:WaitForChild("Humanoid")
 
 local DashModule = {}
 
+local DEFAULT_DASH_SPEED = SharedData.DASH_SPEED
+local DEFAULT_DASH_DURATION = SharedData.DASH_DURATION
 local dashCount = 2
 local dashing = false
 local landingConnection = nil
 
-function DashModule:startDash(input)
+local function flattenVector(vector)
+	return Vector3.new(vector.X, vector.Y, 0)
+end
+
+local function normalizeOrNil(vector)
+	if vector.Magnitude <= 0.05 then
+		return nil
+	end
+
+	return vector.Unit
+end
+
+local function getDashDirection(root, intendedDirection)
+	local explicitDirection = intendedDirection and normalizeOrNil(flattenVector(intendedDirection))
+	if explicitDirection then
+		return explicitDirection
+	end
+
+	local moveDirection = normalizeOrNil(flattenVector(humanoid.MoveDirection))
+	if moveDirection then
+		return moveDirection
+	end
+
+	local velocityDirection = normalizeOrNil(flattenVector(root.AssemblyLinearVelocity))
+	if velocityDirection then
+		return velocityDirection
+	end
+
+	return flattenVector(root.CFrame.LookVector).Unit
+end
+
+function DashModule:startDash(intendedDirection)
     if dashing then
         return
     end
 
-    if not DashModule:checkCanDash() then
+    if not DashModule:checkCanDash(intendedDirection) then
         return
     end
 
@@ -26,11 +59,9 @@ function DashModule:startDash(input)
     dashCount = dashCount - 1
     dashing = true
 
-    -- Apply a forward boost and keep vertical velocity at 0 to counter gravity.
-    local lookVector = root.CFrame.LookVector
-    local inputVector = Vector3.new(lookVector.X, 0, lookVector.Z)
-    
-    local jumpBoost = Vector3.new(lookVector.X, 0, lookVector.Z).Unit * SharedData.DASH_SPEED
+	-- Full x/y input is normalized, so diagonal dashes keep the same total speed.
+    local dashDirection = getDashDirection(root, intendedDirection)
+    local boost = dashDirection * DEFAULT_DASH_SPEED
     humanoid:ChangeState(Enum.HumanoidStateType.Ragdoll)
 
     local att = Instance.new("Attachment")
@@ -42,10 +73,10 @@ function DashModule:startDash(input)
     lv.Attachment0 = att
     lv.MaxForce = math.huge
     lv.RelativeTo = Enum.ActuatorRelativeTo.World
-    lv.VectorVelocity = jumpBoost
+    lv.VectorVelocity = boost
     lv.Parent = root
 
-    task.delay(SharedData.DASH_DURATION, function()
+    task.delay(DEFAULT_DASH_DURATION, function()
         if lv then lv:Destroy() end
         if att then att:Destroy() end
 
@@ -56,7 +87,7 @@ function DashModule:startDash(input)
     characterState:watchForLanding(function()print("Landed, dashes reset."); dashCount = 2 end, landingConnection)
 end
 
-function DashModule:checkCanDash()
+function DashModule:checkCanDash(direction)
     if dashCount <= 0 then
         return false
     end
@@ -64,6 +95,14 @@ function DashModule:checkCanDash()
     local root = humanoid.RootPart
     if not root then
         return false
+    end
+
+    if direction then
+        if direction == Vector3.zero then
+            return false
+        elseif direction == Vector3.new(0, 1, 0) or direction == Vector3.new(0, -1, 0) then
+            return false
+        end
     end
 
     local state = humanoid:GetState()

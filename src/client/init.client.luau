@@ -1,10 +1,10 @@
 local Keybinds = require(script:WaitForChild("keybinds"))
 local Camera2D = require(script:WaitForChild("camera2d"))
 local Movement2D = require(script:WaitForChild("movement2d"))
+local ChatListener = require(script:WaitForChild("chatListener"))
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TextChatService = game:GetService("TextChatService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local character = nil
@@ -12,6 +12,13 @@ local _humanoid = nil
 local slideClient = nil
 local dJumpClient = nil
 local dashClient = nil
+
+local curInputDir = Vector3.zero
+
+RunService.Heartbeat:Connect(function(dt)
+	local heldKeys = Movement2D:getHeldMovementKeys()
+	curInputDir = Movement2D:inputToVector3(heldKeys)
+end)
 
 local function bindCharacter(newCharacter)
 	character = newCharacter
@@ -30,7 +37,7 @@ end
 player.CharacterAdded:Connect(bindCharacter)
 
 Camera2D:start({
-	-- Set this to your stage depth so camera tracks along an X/Y plane.
+	-- Set this to stage depth so camera tracks along an X/Y plane.
 	planeZ = 0,
 })
 
@@ -39,45 +46,9 @@ Movement2D:start({
 	fallbackPlaneZ = 0,
 })
 
+ChatListener:start()
+
 local UIS = game:GetService("UserInputService")
-local promptEvent = ReplicatedStorage:WaitForChild("ChatPromptEvent")
-local responseEvent = ReplicatedStorage:WaitForChild("ChatResponseEvent")
-
-TextChatService.MessageReceived:Connect(function(msg)
-	if not msg.TextSource then
-		return
-	end
-	if msg.TextSource.UserId ~= game.Players.LocalPlayer.UserId then
-		return
-	end
-
-	local text = msg.Text
-	if not text:match("^/ai%s+") then
-		return
-	end
-
-	local prompt = text:gsub("^/ai%s+", "")
-	promptEvent:FireServer(prompt, msg.TextChannel and msg.TextChannel.Name or nil)
-end)
-
-responseEvent.OnClientEvent:Connect(function(reply, channelName)
-	local channels = TextChatService:FindFirstChild("TextChannels")
-	local channel = nil
-	if channels then
-		if channelName and channelName ~= "" then
-			channel = channels:FindFirstChild(channelName)
-		end
-		if not channel then
-			channel = channels:FindFirstChild("RBXGeneral")
-		end
-	end
-
-	if channel then
-		channel:DisplaySystemMessage(reply)
-	else
-		print(reply)
-	end
-end)
 
 local keyDispatch = {
 	[Keybinds.SLIDE_KEY] = function()
@@ -86,8 +57,8 @@ local keyDispatch = {
 	[Keybinds.DOUBLE_JUMP_KEY] = function()
 		dJumpClient:performDoubleJump()
 	end,
-	[Keybinds.DASH_KEY] = function(input)
-		dashClient.startDash(input)
+	[Keybinds.DASH_KEY] = function()
+		dashClient:startDash(curInputDir)
 	end,
 }
 

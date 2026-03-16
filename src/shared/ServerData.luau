@@ -18,8 +18,8 @@ SharedData.MIN_MOVE_SPEED = 6        -- must be moving at least this fast to sli
 
 -- Dash
 SharedData.DASH_SPEED = 100          -- forward dash speed
-SharedData.DASH_DURATION = 0.2       -- seconds
-SharedData.DASH_COOLDOWN = 1.0       -- seconds
+SharedData.DASH_DURATION = 0.1       -- seconds
+SharedData.DASH_COOLDOWN = 0.5       -- seconds
 
 -- Double Jump
 SharedData.DOUBLE_JUMP_BOOST = 1   -- speed multiplier when double jumping

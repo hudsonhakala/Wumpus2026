@@ -22,6 +22,13 @@ local previousAutoRotate = nil
 local warnedMissingCameraPlane = false
 local facingDirection = 1
 
+local inputTable = {
+		[Enum.KeyCode.W] = Vector3.new(0, 1, 0),
+		[Enum.KeyCode.S] = Vector3.new(0, -1, 0),
+		[Enum.KeyCode.A] = Vector3.new(-1, 0, 0),
+		[Enum.KeyCode.D] = Vector3.new(1, 0, 0),
+	}
+
 local function getCurrentPlaneZ()
 	local cameraModule = config.cameraModule
 	if cameraModule and typeof(cameraModule.getPlaneZ) == "function" then
@@ -240,7 +247,7 @@ function Movement2D:setPlaneZFallback(zValue)
 	config.fallbackPlaneZ = zValue
 end
 
-function logHeldMovementKeys()
+local function getHeldMovementKeys()
 	local movementKeyMap = {
 		UP = Keybinds.UP_KEY,
 		LEFT = Keybinds.LEFT_KEY,
@@ -265,17 +272,14 @@ function logHeldMovementKeys()
 	return heldKeys
 end
 
+function Movement2D:getHeldMovementKeys()
+	return getHeldMovementKeys()
+end
+
 function Movement2D:inputToVector3(input)
 	local inputDirection = Vector3.zero
 
-	local inputTable = {
-		[Enum.KeyCode.W] = Vector3.new(0, 0, -1),
-		[Enum.KeyCode.S] = Vector3.new(0, 0, 1),
-		[Enum.KeyCode.A] = Vector3.new(-1, 0, 0),
-		[Enum.KeyCode.D] = Vector3.new(1, 0, 0),
-	}
-
-	local heldKeys = input or logHeldMovementKeys()
+	local heldKeys = input or self:getHeldMovementKeys()
 	for _, key in ipairs(heldKeys) do
 		local direction = inputTable[key]
 		if direction then
